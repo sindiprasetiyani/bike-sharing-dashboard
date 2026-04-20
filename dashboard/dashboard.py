@@ -10,12 +10,10 @@ st.set_page_config(
 
 sns.set_theme(style="whitegrid")
 
-
 df = pd.read_csv("dashboard/main_data.csv")
 
-# pastikan tipe tanggal
+# pastikan tipe datetime
 df['dteday'] = pd.to_datetime(df['dteday'])
-
 
 st.sidebar.title("🔧 Filter Data")
 
@@ -25,15 +23,14 @@ max_date = df['dteday'].max()
 start_date = st.sidebar.date_input("Start Date", min_date)
 end_date = st.sidebar.date_input("End Date", max_date)
 
-# filter berdasarkan tanggal
 filtered_df = df[
     (df['dteday'] >= pd.to_datetime(start_date)) &
     (df['dteday'] <= pd.to_datetime(end_date))
 ]
 
+
 st.title("🚲 Bike Sharing Insights")
 st.markdown("Analisis penggunaan sepeda berdasarkan waktu dan kondisi lingkungan")
-
 
 total_rentals = filtered_df['total_rentals'].sum()
 avg_rentals = filtered_df['total_rentals'].mean()
@@ -45,12 +42,14 @@ col1.metric("Total Rentals", f"{int(total_rentals):,}")
 col2.metric("Average per Hour", f"{int(avg_rentals)}")
 col3.metric("Max Rentals", f"{int(max_rentals)}")
 
+# =========================
 # PERTANYAAN 1
+# =========================
 st.subheader("📊 Pengaruh Musim & Cuaca")
 
 col1, col2 = st.columns(2)
 
-# ---- SEASON
+# SEASON
 season_avg = filtered_df.groupby("season")["total_rentals"].mean().reset_index()
 
 fig1, ax1 = plt.subplots()
@@ -67,7 +66,7 @@ ax1.set_ylabel("Average Rentals")
 
 col1.pyplot(fig1)
 
-# ---- WEATHER
+# WEATHER
 weather_avg = filtered_df.groupby("weathersit")["total_rentals"].mean().reset_index()
 
 fig2, ax2 = plt.subplots()
@@ -83,11 +82,11 @@ ax2.set_xlabel("Weather Condition")
 ax2.set_ylabel("Average Rentals")
 
 plt.xticks(rotation=25)
-
 col2.pyplot(fig2)
 
+# =========================
 # PERTANYAAN 2
-
+# =========================
 st.subheader("⏰ Pola Penggunaan Sepeda (Weekday vs Weekend)")
 
 hourly_pattern = (
@@ -115,14 +114,21 @@ st.pyplot(fig3)
 
 st.subheader("📈 Tren Bulanan")
 
+filtered_df['month_year'] = filtered_df['dteday'].dt.to_period('M')
 
-monthly = filtered_df.resample('M', on='dteday')['total_rentals'].mean().reset_index()
+monthly = (
+    filtered_df.groupby('month_year')['total_rentals']
+    .mean()
+    .reset_index()
+)
+
+monthly['month_year'] = monthly['month_year'].astype(str)
 
 fig4, ax4 = plt.subplots(figsize=(10,4))
 
 sns.lineplot(
     data=monthly,
-    x='dteday',
+    x='month_year',
     y='total_rentals',
     color="#1B2631",
     ax=ax4
@@ -132,8 +138,9 @@ ax4.set_title("Monthly Trend of Rentals")
 ax4.set_xlabel("Month")
 ax4.set_ylabel("Average Rentals")
 
+plt.xticks(rotation=45)
+
 st.pyplot(fig4)
 
-
 st.markdown("---")
-st.caption("Dibuat untuk submission Dicoding - Data Scientist")
+st.caption("Dibuat untuk submission Dicoding - Data Scientist 🚀")
