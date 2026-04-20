@@ -3,127 +3,137 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
 
-# Style clean 
+st.set_page_config(
+    page_title="Bike Sharing Dashboard",
+    layout="wide"
+)
+
 sns.set_theme(style="whitegrid")
 
-# =========================
-# LOAD DATA
-# =========================
-df = pd.read_csv("Dashboard/main_data.csv")
+
+df = pd.read_csv("dashboard/main_data.csv")
+
+# pastikan tipe tanggal
 df['dteday'] = pd.to_datetime(df['dteday'])
 
-# =========================
-# SIDEBAR FILTER 
-# =========================
+
 st.sidebar.title("🔧 Filter Data")
 
-start_date = st.sidebar.date_input("Start Date", df['dteday'].min())
-end_date = st.sidebar.date_input("End Date", df['dteday'].max())
+min_date = df['dteday'].min()
+max_date = df['dteday'].max()
 
+start_date = st.sidebar.date_input("Start Date", min_date)
+end_date = st.sidebar.date_input("End Date", max_date)
+
+# filter berdasarkan tanggal
 filtered_df = df[
     (df['dteday'] >= pd.to_datetime(start_date)) &
     (df['dteday'] <= pd.to_datetime(end_date))
 ]
 
-# =========================
-# HEADER 
-# =========================
 st.title("🚲 Bike Sharing Insights")
-st.write("Analisis pola penggunaan sepeda berdasarkan waktu dan kondisi lingkungan")
+st.markdown("Analisis penggunaan sepeda berdasarkan waktu dan kondisi lingkungan")
 
-# =========================
-# METRICS 
-# =========================
+
+total_rentals = filtered_df['total_rentals'].sum()
+avg_rentals = filtered_df['total_rentals'].mean()
+max_rentals = filtered_df['total_rentals'].max()
+
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Total Rentals", int(filtered_df['total_rentals'].sum()))
-col2.metric("Average per Day", int(filtered_df.groupby('dteday')['total_rentals'].sum().mean()))
-col3.metric("Max Rentals", int(filtered_df['total_rentals'].max()))
+col1.metric("Total Rentals", f"{int(total_rentals):,}")
+col2.metric("Average per Hour", f"{int(avg_rentals)}")
+col3.metric("Max Rentals", f"{int(max_rentals)}")
 
-# =========================
-# TREND HARIAN
-# =========================
-st.markdown("## 📈 Analisis Tren Peminjaman Harian")
+# PERTANYAAN 1
+st.subheader("📊 Pengaruh Musim & Cuaca")
 
-daily = filtered_df.groupby('dteday')['total_rentals'].sum().reset_index()
+col1, col2 = st.columns(2)
 
-fig, ax = plt.subplots(figsize=(14,6))
-ax.plot(
-    daily['dteday'],
-    daily['total_rentals'],
-    linewidth=2,
-    color='#1B2631'
+# ---- SEASON
+season_avg = filtered_df.groupby("season")["total_rentals"].mean().reset_index()
+
+fig1, ax1 = plt.subplots()
+sns.barplot(
+    data=season_avg,
+    x="season",
+    y="total_rentals",
+    color="#1B2631",
+    ax=ax1
 )
-ax.set_xlabel("Tanggal")
-ax.set_ylabel("Jumlah Peminjaman")
-st.pyplot(fig)
+ax1.set_title("Average Rentals by Season")
+ax1.set_xlabel("Season")
+ax1.set_ylabel("Average Rentals")
 
-st.caption("Terlihat fluktuasi penggunaan yang dipengaruhi oleh waktu dan kondisi tertentu.")
+col1.pyplot(fig1)
 
-# =========================
-# POLA JAM
-# =========================
-st.markdown("## ⏰ Pola Penggunaan per Jam")
+# ---- WEATHER
+weather_avg = filtered_df.groupby("weathersit")["total_rentals"].mean().reset_index()
 
-hourly = filtered_df.groupby('hr')['total_rentals'].mean().reset_index()
+fig2, ax2 = plt.subplots()
+sns.barplot(
+    data=weather_avg,
+    x="weathersit",
+    y="total_rentals",
+    color="#1B2631",
+    ax=ax2
+)
+ax2.set_title("Average Rentals by Weather")
+ax2.set_xlabel("Weather Condition")
+ax2.set_ylabel("Average Rentals")
 
-fig, ax = plt.subplots(figsize=(10,5))
+plt.xticks(rotation=25)
+
+col2.pyplot(fig2)
+
+# PERTANYAAN 2
+
+st.subheader("⏰ Pola Penggunaan Sepeda (Weekday vs Weekend)")
+
+hourly_pattern = (
+    filtered_df.groupby(['hr','day_type'])['total_rentals']
+    .mean()
+    .reset_index()
+)
+
+fig3, ax3 = plt.subplots(figsize=(10,5))
+
 sns.lineplot(
-    data=hourly,
+    data=hourly_pattern,
     x='hr',
     y='total_rentals',
-    marker='o',
-    color='#1B2631',
-    ax=ax
+    hue='day_type',
+    ax=ax3
 )
-st.pyplot(fig)
 
-st.caption("Puncak penggunaan terjadi pada jam sibuk (pagi & sore).")
+ax3.set_title("Bike Usage Pattern per Hour")
+ax3.set_xlabel("Hour")
+ax3.set_ylabel("Average Rentals")
+
+st.pyplot(fig3)
 
 
-# =========================
-# MUSIM
-# =========================
-st.markdown("## 🌦️ Pengaruh Musim")
+st.subheader("📈 Tren Bulanan")
 
-season = filtered_df.groupby('season')['total_rentals'].mean().reset_index()
 
-fig, ax = plt.subplots(figsize=(8,5))
-sns.barplot(
-    data=season,
-    x='season',
+monthly = filtered_df.resample('M', on='dteday')['total_rentals'].mean().reset_index()
+
+fig4, ax4 = plt.subplots(figsize=(10,4))
+
+sns.lineplot(
+    data=monthly,
+    x='dteday',
     y='total_rentals',
-    color='#1B2631',
-    ax=ax
-)
-st.pyplot(fig)
-
-st.caption("Musim tertentu menunjukkan tingkat penggunaan lebih tinggi.")
-
-# =========================
-# SEGMENTASI
-# =========================
-st.markdown("## 📊 Segmentasi Penggunaan")
-
-filtered_df['usage_category'] = pd.qcut(
-    filtered_df['total_rentals'],
-    q=3,
-    labels=['Low', 'Medium', 'High']
+    color="#1B2631",
+    ax=ax4
 )
 
-fig, ax = plt.subplots(figsize=(6,4))
-sns.countplot(
-    x='usage_category',
-    data=filtered_df,
-    color='#1B2631',
-    ax=ax
-)
-st.pyplot(fig)
+ax4.set_title("Monthly Trend of Rentals")
+ax4.set_xlabel("Month")
+ax4.set_ylabel("Average Rentals")
 
-st.caption("Distribusi penggunaan menunjukkan variasi tingkat aktivitas pengguna.")
+st.pyplot(fig4)
 
-# =========================
-# FOOTER
-# =========================
+
 st.markdown("---")
-st.write("Dashboard ini dibuat untuk analisis eksploratif penggunaan bike sharing.")
+st.caption("Dibuat untuk submission Dicoding - Data Scientist")
